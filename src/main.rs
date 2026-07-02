@@ -7,15 +7,6 @@ struct Args {
   input: PathBuf,
 }
 
-#[derive(Debug)]
-enum Keyword {
-    Grid,
-    Di,
-    Dj,
-    Dk,
-    Unknown(String),
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Block {
     Grid,
@@ -29,10 +20,11 @@ enum Block {
 #[derive(Debug)]
 struct InputBlock {
     block: Block,
-    line: Vec<String>,
+    lines: Vec<String>,
 }
 
 fn block_from_line(line: &str) -> Option<Block> {
+
     let word = line.trim().split_whitespace().next()?
         .strip_prefix('*').unwrap_or(line);
 
@@ -47,49 +39,61 @@ fn block_from_line(line: &str) -> Option<Block> {
     }
 }
 
-fn normalize_token(token: &str) -> &str {
-    token.strip_prefix('*').unwrap_or(token)
+fn is_commentary_line(line: &str) -> bool {
+    line.trim_start().starts_with("**")
 }
 
-fn classify_keyword(line :&str) -> Option<Keyword> {
-    let word = line.trim().split_whitespace().next()?;
-
-    // remove the '*' if it exists
-    let word = normalize_token(word);
-
-    match word.to_uppercase().as_str() {
-        "GRID" => Some(Keyword::Grid),
-        "DI"   => Some(Keyword::Di),
-        "DJ"   => Some(Keyword::Dj),
-        "DK"   => Some(Keyword::Dk),
-        other  => Some(Keyword::Unknown(other.to_string())),
-    }
+fn is_empty_line(line: &str) -> bool {
+    line.trim().is_empty()
 }
 
 fn main() {
 
+    // Parse command line arguments
     let args = Args::parse();
 
-    let input_bytes = fs::read(&args.input)
-      .expect("Could not read input file.");
+    // Read the input file as big string
+    let input_text = fs::read_to_string(&args.input).expect("Could not read input file");
 
-    let input_text: String = input_bytes.into_iter().map(|b| b as char).collect();
+    let mut blocks: Vec<InputBlock> = Vec::new();
+    let mut current_block: Option<InputBlock> = None;
 
-    let mut current_block = None;
-    // println!("File size: {} bytes", input.len());
-    // println!("{input_text}");
-    for (line_number, line) in input_text.lines().enumerate() {
-        // if let Some(keyword) = classify_keyword(line) {
-        //     println!("{:04}: {:?} -> {}", i + 1, keyword, line);
-        // }
+    for line in input_text.lines() {
         if let Some(block) = block_from_line(line) {
-            println!("New block {:?} in line {}", block, line_number + 1);
-            current_block = Some(block);
+            if let Some(current) = current_block.take() {
+                blocks.push(current);
+            }
+            current_block = Some(InputBlock { block, lines: Vec::new() });
         }
 
-        println!("{:?}: {}", current_block, line);
+        if let Some(ref mut current) = current_block {
+            if is_commentary_line(line) {
+                continue;
+            }
+            if !is_empty_line(line) {
+                current.lines.push(line.trim().to_string());
+            }
+        }
     }
 
+    if let Some(last_block) = current_block {
+        blocks.push(last_block);
+    }
 
+    for block in blocks {
+        println!("--> Block: {:?},\n Lines: {:?}\n", block.block, block.lines);
+    }
+        
+
+    // let mut current_block = None;
+
+    // for (line_number, line) in input_text.lines().enumerate() {
+    //     if let Some(block) = block_from_line(line) {
+    //         println!("New block {:?} in line {}", block, line_number + 1);
+    //         current_block = Some(block);
+    //     }
+
+    //     println!("{:?}: {}", current_block, line);
+    // }
 
 }
